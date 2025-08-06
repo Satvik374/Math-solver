@@ -84,16 +84,8 @@ def main():
                 else:
                     problem_to_solve = problem_input
                 
-                # Debug information
-                st.info(f"🔍 Processing: '{problem_to_solve}' as problem type: '{problem_type}'")
-                
                 # Solve the problem
                 solution = solver.solve_problem(problem_to_solve, problem_type)
-                
-                # Debug: Show what the solver returned
-                with st.expander("🔧 Debug Information (Click to expand)"):
-                    st.write("**Raw solver output:**")
-                    st.json(solution)
                 
                 if solution and "error" not in solution:
                     # Display the solution
