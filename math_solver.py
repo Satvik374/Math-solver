@@ -53,6 +53,12 @@ class MathSolver:
         text = text.replace("×", "*")   # Multiplication symbol
         text = text.replace("π", "pi")  # Pi symbol
         text = text.replace("∞", "oo")  # Infinity symbol
+        text = text.replace("**", "**") # Ensure power notation is consistent
+        
+        # Handle common input formats
+        text = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', text)  # Add multiplication: 2x -> 2*x
+        text = re.sub(r'([a-zA-Z])(\d)', r'\1*\2', text)  # Add multiplication: x2 -> x*2
+        text = re.sub(r'\)\(', ')*(', text)  # Add multiplication between parentheses
         
         # Remove extra whitespace
         text = " ".join(text.split())
@@ -80,16 +86,21 @@ class MathSolver:
             # Extract equation from text
             equation_match = re.search(r'solve\s+(.+?)(?:\s+for\s+(\w+))?$', problem_text.lower())
             if equation_match:
-                equation_str = equation_match.group(1)
+                equation_str = equation_match.group(1).strip()
                 var_str = equation_match.group(2) if equation_match.group(2) else 'x'
             else:
-                equation_str = problem_text
+                equation_str = problem_text.strip()
                 var_str = 'x'
+            
+            # Clean up the equation string
+            equation_str = equation_str.replace('^', '**')
             
             # Parse the expression
             if '=' in equation_str:
-                left, right = equation_str.split('=')
-                equation = parse_expr(left) - parse_expr(right)
+                left, right = equation_str.split('=', 1)
+                left_expr = parse_expr(left.strip())
+                right_expr = parse_expr(right.strip())
+                equation = left_expr - right_expr
             else:
                 equation = parse_expr(equation_str)
             
@@ -100,7 +111,8 @@ class MathSolver:
             solutions = solve(equation, var)
             
             steps = [
-                f"Original equation: {equation_str}",
+                f"Original problem: {problem_text}",
+                f"Equation to solve: {equation_str}",
                 f"Rearranged as: {equation} = 0",
                 f"Solving for {var_str}..."
             ]
