@@ -45,13 +45,18 @@ class MathSolver:
     
     def _preprocess_input(self, text):
         """Clean and preprocess the input text"""
+        # Convert to string and strip whitespace
+        text = str(text).strip()
+        
+        # Remove any non-printable characters
+        text = ''.join(char for char in text if char.isprintable() or char.isspace())
+        
         # Replace common mathematical notations
         text = text.replace("^", "**")  # Convert power notation
         text = text.replace("÷", "/")   # Division symbol
         text = text.replace("×", "*")   # Multiplication symbol
         text = text.replace("π", "pi")  # Pi symbol
         text = text.replace("∞", "oo")  # Infinity symbol
-        text = text.replace("**", "**") # Ensure power notation is consistent
         
         # Handle common input formats
         text = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', text)  # Add multiplication: 2x -> 2*x
@@ -96,11 +101,17 @@ class MathSolver:
             # Parse the expression
             if '=' in equation_str:
                 left, right = equation_str.split('=', 1)
-                left_expr = parse_expr(left.strip())
-                right_expr = parse_expr(right.strip())
-                equation = left_expr - right_expr
+                try:
+                    left_expr = parse_expr(left.strip())
+                    right_expr = parse_expr(right.strip())
+                    equation = left_expr - right_expr
+                except Exception as parse_error:
+                    return {"error": f"Failed to parse equation '{equation_str}': {str(parse_error)}"}
             else:
-                equation = parse_expr(equation_str)
+                try:
+                    equation = parse_expr(equation_str)
+                except Exception as parse_error:
+                    return {"error": f"Failed to parse expression '{equation_str}': {str(parse_error)}"}
             
             # Get the variable to solve for
             var = symbols(var_str)
@@ -138,9 +149,12 @@ class MathSolver:
             if '=' not in equation_text:
                 return {"error": "No equation found (missing '=' sign)"}
             
-            left, right = equation_text.split('=')
-            left_expr = parse_expr(left.strip())
-            right_expr = parse_expr(right.strip())
+            left, right = equation_text.split('=', 1)
+            try:
+                left_expr = parse_expr(left.strip())
+                right_expr = parse_expr(right.strip())
+            except Exception as parse_error:
+                return {"error": f"Failed to parse equation '{equation_text}': {str(parse_error)}"}
             
             equation = left_expr - right_expr
             
