@@ -294,35 +294,21 @@ class NLPProcessor:
     def _handle_money_problem(self, text, numbers):
         """Handle money-related problems"""
         if len(numbers) >= 2:
-            # Complex multi-item problems (books AND pens)
-            if 'and' in text and 'each' in text and len(numbers) >= 4:
-                # Pattern: X items for $Y each and Z items for $W each
-                # Assume: quantity1, price1, quantity2, price2
-                return f"({numbers[0]} * {numbers[1]}) + ({numbers[2]} * {numbers[3]})"
-            
-            # Single item multiple quantity
-            elif 'each' in text or 'per' in text:
+            # Multiple items with same price
+            if 'each' in text or 'per' in text:
+                # Find quantity and price
                 return f"{numbers[0]} * {numbers[1]}"
             
             # Discount problems
             elif 'discount' in text and ('percent' in text or '%' in text):
-                # Find the price and discount percentage
-                price = max(num for num in numbers if num > 1)  # Price is usually the larger number
-                discount_pct = min(num for num in numbers if num <= 100)  # Discount is smaller
-                if discount_pct > 1:
-                    discount_pct = discount_pct / 100
-                return f"{price} * (1 - {discount_pct})"
-            
-            # Spending/subtraction problems (buy multiple items)
-            elif any(word in text for word in ['left', 'remaining', 'buys']) and len(numbers) >= 3:
-                # Pattern: Has $X, buys item for $Y and item for $Z
-                return f"{numbers[0]} - {numbers[1]} - {numbers[2]}"
+                percentage = numbers[1] if numbers[1] <= 1 else numbers[1] / 100
+                return f"{numbers[0]} * (1 - {percentage})"
             
             # Total cost problems
             elif any(word in text for word in ['total', 'sum', 'altogether']):
                 return f"{numbers[0]} + {numbers[1]}"
             
-            # Simple change problems
+            # Change problems
             elif any(word in text for word in ['change', 'difference', 'left']):
                 return f"{numbers[0]} - {numbers[1]}"
                 
@@ -482,22 +468,15 @@ class NLPProcessor:
             elif 'what percent' in text:
                 return f"({numbers[0]} / {numbers[1]}) * 100"
             
-            # Increase by percentage (growth problems)
+            # Increase by percentage
             elif 'increase' in text and ('percent' in text or '%' in text):
-                # Find the base value (usually larger) and percentage
-                base_value = max(num for num in numbers if num > 1)
-                percentage = min(num for num in numbers if num <= 100)
-                if percentage > 1:
-                    percentage = percentage / 100
-                return f"{base_value} * (1 + {percentage})"
+                percentage = numbers[0] if numbers[0] <= 1 else numbers[0] / 100
+                return f"{numbers[1]} * (1 + {percentage})"
             
             # Decrease by percentage  
             elif 'decrease' in text and ('percent' in text or '%' in text):
-                base_value = max(num for num in numbers if num > 1)
-                percentage = min(num for num in numbers if num <= 100)
-                if percentage > 1:
-                    percentage = percentage / 100
-                return f"{base_value} * (1 - {percentage})"
+                percentage = numbers[0] if numbers[0] <= 1 else numbers[0] / 100
+                return f"{numbers[1]} * (1 - {percentage})"
                 
         return None
     
