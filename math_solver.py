@@ -8,10 +8,8 @@ import re
 
 class MathSolver:
     def __init__(self):
-        """Initialize the math solver with common symbols"""
-        self.x, self.y, self.z = symbols('x y z')
-        self.t = symbols('t')
-        self.common_symbols = [self.x, self.y, self.z, self.t]
+        """Initialize the math solver"""
+        pass
         
     def solve_problem(self, problem_text, problem_type="Auto-detect"):
         """

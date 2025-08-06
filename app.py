@@ -5,7 +5,6 @@ from nlp_processor import NLPProcessor
 from solution_formatter import SolutionFormatter
 
 # Initialize components
-@st.cache_resource
 def init_components():
     """Initialize the math solver and NLP processor"""
     solver = MathSolver()
