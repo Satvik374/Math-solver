@@ -1,5 +1,6 @@
 import sympy as sp
 import matplotlib.pyplot as plt
+import re
 from math_solver import MathSolver
 
 class SolutionFormatter:
@@ -17,8 +18,8 @@ class SolutionFormatter:
             }
         
         formatted_result = {
-            "steps": solution_data.get("steps", []),
-            "answer": solution_data.get("answer", ""),
+            "steps": [self._format_math_symbols(step) for step in solution_data.get("steps", [])],
+            "answer": self._format_math_symbols(solution_data.get("answer", "")),
             "info": [],
             "plot": None
         }
@@ -34,6 +35,8 @@ class SolutionFormatter:
             formatted_result = self._format_derivative_solution(solution_data, formatted_result)
         elif problem_type == "integral":
             formatted_result = self._format_integral_solution(solution_data, formatted_result)
+        elif problem_type == "system_of_equations":
+            formatted_result = self._format_system_solution(solution_data, formatted_result)
         elif problem_type == "general":
             formatted_result = self._format_general_solution(solution_data, formatted_result)
         
@@ -132,10 +135,10 @@ class SolutionFormatter:
         
         # Add information about different forms
         if factored and factored != simplified:
-            formatted_result["info"].append("Factored form available - useful for finding zeros")
+            formatted_result["info"].append(self._format_math_symbols("Factored form available - useful for finding zeros"))
         
         if expanded and expanded != simplified:
-            formatted_result["info"].append("Expanded form available - useful for polynomial operations")
+            formatted_result["info"].append(self._format_math_symbols("Expanded form available - useful for polynomial operations"))
         
         # If expression has variables, try to create a plot
         if simplified and hasattr(simplified, 'free_symbols'):
@@ -149,6 +152,23 @@ class SolutionFormatter:
                     pass
         
         return formatted_result
+    
+    def _format_math_symbols(self, text):
+        """Convert mathematical expressions to use proper symbols"""
+        if isinstance(text, str):
+            # Replace sqrt with √ symbol
+            text = re.sub(r'sqrt\(([^)]+)\)', r'√(\1)', text)
+            
+            # Replace other common mathematical symbols
+            text = text.replace('pi', 'π')
+            text = text.replace('infinity', '∞')
+            text = text.replace('oo', '∞')
+            text = text.replace('**', '^')  # Power notation
+            
+            # Handle negative square roots
+            text = re.sub(r'-√\(([^)]+)\)', r'-√(\1)', text)
+            
+        return text
     
     def _latex_format(self, expression):
         """Convert sympy expression to LaTeX format (for future enhancement)"""
@@ -178,3 +198,16 @@ class SolutionFormatter:
             explained_steps.append(explained_step)
         
         return explained_steps
+    
+    def _format_system_solution(self, solution_data, formatted_result):
+        """Format system of equations solutions"""
+        formatted_result['info'].append("📊 This is a system of equations with multiple variables")
+        
+        # Check if we have solutions for boat/current or similar problems
+        answer = solution_data.get('answer', '')
+        if 'b =' in answer and 'c =' in answer:
+            formatted_result['info'].append("🚤 b = speed of boat in still water, c = speed of current")
+        elif 'p =' in answer and 'w =' in answer:
+            formatted_result['info'].append("✈️ p = speed of plane in still air, w = wind speed")
+        
+        return formatted_result

@@ -23,6 +23,10 @@ class MathSolver:
             if problem_type == "Auto-detect":
                 problem_type = self._detect_problem_type(cleaned_problem)
             
+            # Check if this is a simple calculation (not an equation to solve)
+            if self._is_simple_calculation(cleaned_problem):
+                return self._evaluate_expression(cleaned_problem)
+            
             # Route to appropriate solver based on problem type
             if problem_type == "Algebra" or "solve" in cleaned_problem.lower():
                 return self._solve_algebraic(cleaned_problem)
@@ -30,6 +34,8 @@ class MathSolver:
                 return self._solve_calculus_derivative(cleaned_problem)
             elif problem_type == "Calculus" or any(keyword in cleaned_problem.lower() for keyword in ["integrate", "integral", "∫"]):
                 return self._solve_calculus_integral(cleaned_problem)
+            elif self._is_system_of_equations(cleaned_problem):
+                return self._solve_system_of_equations(cleaned_problem)
             elif problem_type == "Direct Equation" or "=" in cleaned_problem:
                 return self._solve_equation(cleaned_problem)
             else:
@@ -51,12 +57,19 @@ class MathSolver:
         # Remove any non-printable characters
         text = ''.join(char for char in text if char.isprintable() or char.isspace())
         
+        # Handle command words that precede expressions
+        text = re.sub(r'^calculate\s+', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^what is\s+', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^find\s+', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'^solve\s+', '', text, flags=re.IGNORECASE)
+        
         # Replace common mathematical notations
         text = text.replace("^", "**")  # Convert power notation
         text = text.replace("÷", "/")   # Division symbol
         text = text.replace("×", "*")   # Multiplication symbol
         text = text.replace("π", "pi")  # Pi symbol
         text = text.replace("∞", "oo")  # Infinity symbol
+        text = re.sub(r'√\(([^)]+)\)', r'sqrt(\1)', text)  # Convert √ to sqrt for parsing
         
         # Handle common input formats
         text = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', text)  # Add multiplication: 2x -> 2*x
@@ -67,6 +80,35 @@ class MathSolver:
         text = " ".join(text.split())
         
         return text
+    
+    def _is_simple_calculation(self, problem_text):
+        """Check if this is a simple calculation rather than an equation to solve"""
+        # If no equals sign and no variables, it's likely a calculation
+        if "=" not in problem_text and not re.search(r'\b[a-zA-Z]\b', problem_text):
+            # Check if it contains only numbers and operators
+            if re.match(r'^[\d\+\-\*/\(\)\.\s]+$', problem_text):
+                return True
+        return False
+    
+    def _evaluate_expression(self, expression_text):
+        """Evaluate a simple mathematical expression"""
+        try:
+            expr = parse_expr(expression_text)
+            result = float(expr.evalf())
+            
+            steps = [
+                f"Evaluating: {expression_text}",
+                f"Result: {result}"
+            ]
+            
+            return {
+                "steps": steps,
+                "answer": str(result),
+                "type": "calculation"
+            }
+            
+        except Exception as e:
+            return {"error": f"Could not evaluate expression: {str(e)}"}
     
     def _detect_problem_type(self, problem_text):
         """Detect the type of mathematical problem"""
@@ -87,13 +129,22 @@ class MathSolver:
         """Solve algebraic problems"""
         try:
             # Extract equation from text
-            equation_match = re.search(r'solve\s+(.+?)(?:\s+for\s+(\w+))?$', problem_text.lower())
-            if equation_match:
-                equation_str = equation_match.group(1).strip()
-                var_str = equation_match.group(2) if equation_match.group(2) else 'x'
-            else:
-                equation_str = problem_text.strip()
-                var_str = 'x'
+            equation_str = problem_text.strip()
+            var_str = 'x'
+            
+            # Handle "solve ... for variable" pattern
+            for_match = re.search(r'\s+for\s+(\w+)$', problem_text.lower())
+            if for_match:
+                var_str = for_match.group(1)
+                # Remove the "for variable" part from the equation
+                equation_str = re.sub(r'\s+for\s+\w+$', '', problem_text, flags=re.IGNORECASE).strip()
+            
+            # Remove "solve" from the beginning if present
+            equation_str = re.sub(r'^solve\s+', '', equation_str, flags=re.IGNORECASE).strip()
+            
+            # Validate that we have something to work with
+            if not equation_str:
+                return {"error": "No equation provided to solve. Please enter a mathematical equation."}
             
             # Clean up the equation string
             equation_str = equation_str.replace('^', '**')
@@ -106,12 +157,12 @@ class MathSolver:
                     right_expr = parse_expr(right.strip())
                     equation = left_expr - right_expr
                 except Exception as parse_error:
-                    return {"error": f"Failed to parse equation '{equation_str}': {str(parse_error)}"}
+                    return {"error": f"Failed to parse equation '{equation_str}': {str(parse_error)}. Please check your equation format."}
             else:
                 try:
                     equation = parse_expr(equation_str)
                 except Exception as parse_error:
-                    return {"error": f"Failed to parse expression '{equation_str}': {str(parse_error)}"}
+                    return {"error": f"Failed to parse expression '{equation_str}': {str(parse_error)}. Please check your equation format."}
             
             # Get the variable to solve for
             var = symbols(var_str)
@@ -146,15 +197,26 @@ class MathSolver:
     def _solve_equation(self, equation_text):
         """Solve direct equations"""
         try:
-            if '=' not in equation_text:
+            # Handle "for variable" pattern like in _solve_algebraic
+            equation_str = equation_text.strip()
+            var_str = 'x'
+            
+            # Handle "solve ... for variable" pattern
+            for_match = re.search(r'\s+for\s+(\w+)$', equation_text.lower())
+            if for_match:
+                var_str = for_match.group(1)
+                # Remove the "for variable" part from the equation
+                equation_str = re.sub(r'\s+for\s+\w+$', '', equation_text, flags=re.IGNORECASE).strip()
+            
+            if '=' not in equation_str:
                 return {"error": "No equation found (missing '=' sign)"}
             
-            left, right = equation_text.split('=', 1)
+            left, right = equation_str.split('=', 1)
             try:
                 left_expr = parse_expr(left.strip())
                 right_expr = parse_expr(right.strip())
             except Exception as parse_error:
-                return {"error": f"Failed to parse equation '{equation_text}': {str(parse_error)}"}
+                return {"error": f"Failed to parse equation '{equation_str}': {str(parse_error)}. Please check your equation format."}
             
             equation = left_expr - right_expr
             
@@ -178,7 +240,7 @@ class MathSolver:
                     solutions[str(var)] = var_solutions
             
             steps = [
-                f"Original equation: {equation_text}",
+                f"Original equation: {equation_str}",
                 f"Rearranged as: {equation} = 0"
             ]
             
@@ -358,3 +420,99 @@ class MathSolver:
             
         except Exception as e:
             return None
+    
+    def _is_system_of_equations(self, problem_text):
+        """Check if the problem contains a system of equations"""
+        # Look for multiple equations separated by commas or "and"
+        if ',' in problem_text and '=' in problem_text:
+            equations = problem_text.split(',')
+            equation_count = sum(1 for eq in equations if '=' in eq.strip())
+            return equation_count >= 2
+        return False
+    
+    def _solve_system_of_equations(self, problem_text):
+        """Solve a system of equations"""
+        try:
+            # Split equations by comma
+            equation_strings = [eq.strip() for eq in problem_text.split(',')]
+            equations = []
+            variables = set()
+            
+            steps = ["System of equations:"]
+            
+            # Parse each equation
+            for i, eq_str in enumerate(equation_strings, 1):
+                if '=' not in eq_str:
+                    continue
+                    
+                left, right = eq_str.split('=', 1)
+                try:
+                    left_expr = parse_expr(left.strip())
+                    right_expr = parse_expr(right.strip())
+                    equation = left_expr - right_expr
+                    equations.append(equation)
+                    variables.update(equation.free_symbols)
+                    steps.append(f"Equation {i}: {eq_str}")
+                except Exception as parse_error:
+                    return {"error": f"Failed to parse equation '{eq_str}': {str(parse_error)}"}
+            
+            if not equations:
+                return {"error": "No valid equations found in the system"}
+            
+            if not variables:
+                return {"error": "No variables found in the system"}
+            
+            # Solve the system
+            try:
+                solutions = solve(equations, list(variables))
+                steps.append(f"Solving for variables: {', '.join(str(v) for v in variables)}")
+                
+                if not solutions:
+                    return {
+                        "steps": steps + ["No solution exists for this system"],
+                        "answer": "No solution",
+                        "type": "system_of_equations"
+                    }
+                
+                # Format the solution
+                if isinstance(solutions, dict):
+                    # Single solution
+                    answer_parts = []
+                    for var, value in solutions.items():
+                        answer_parts.append(f"{var} = {value}")
+                        steps.append(f"{var} = {value}")
+                    
+                    answer = ", ".join(answer_parts)
+                    
+                elif isinstance(solutions, list):
+                    # Multiple solutions
+                    answer_parts = []
+                    for i, sol in enumerate(solutions):
+                        if isinstance(sol, dict):
+                            sol_str = ", ".join(f"{var} = {value}" for var, value in sol.items())
+                        else:
+                            sol_str = str(sol)
+                        answer_parts.append(f"Solution {i+1}: {sol_str}")
+                        steps.append(f"Solution {i+1}: {sol_str}")
+                    
+                    answer = "; ".join(answer_parts)
+                
+                else:
+                    answer = str(solutions)
+                    steps.append(f"Solution: {answer}")
+                
+                return {
+                    "steps": steps,
+                    "answer": answer,
+                    "type": "system_of_equations"
+                }
+                
+            except Exception as solve_error:
+                return {
+                    "error": f"Failed to solve system: {str(solve_error)}",
+                    "steps": steps + [f"Error: {str(solve_error)}"],
+                    "type": "system_of_equations"
+                }
+                
+        except Exception as e:
+            return {"error": f"System solving error: {str(e)}"}
