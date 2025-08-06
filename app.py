@@ -85,10 +85,18 @@ def main():
                 else:
                     problem_to_solve = problem_input
                 
+                # Debug information
+                st.info(f"🔍 Processing: '{problem_to_solve}' as problem type: '{problem_type}'")
+                
                 # Solve the problem
                 solution = solver.solve_problem(problem_to_solve, problem_type)
                 
-                if solution:
+                # Debug: Show what the solver returned
+                with st.expander("🔧 Debug Information (Click to expand)"):
+                    st.write("**Raw solver output:**")
+                    st.json(solution)
+                
+                if solution and "error" not in solution:
                     # Display the solution
                     st.success("✅ Problem solved successfully!")
                     
@@ -122,6 +130,14 @@ def main():
                         st.subheader("Additional Information:")
                         for info in formatted_solution["info"]:
                             st.info(info)
+                
+                elif solution and "error" in solution:
+                    st.error(f"❌ Error solving the problem: {solution['error']}")
+                    st.info("💡 Try reformatting your equation. For example: 'x + 5 = 10' or 'solve x^2 + 2x + 1 = 0'")
+                    
+                    # Show what was attempted to be solved
+                    st.subheader("What was processed:")
+                    st.code(problem_to_solve, language="text")
                 
                 else:
                     st.error("❌ Could not solve the problem. Please check your input and try again.")
