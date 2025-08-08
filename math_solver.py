@@ -27,12 +27,20 @@ class MathSolver:
             if self._is_simple_calculation(cleaned_problem):
                 return self._evaluate_expression(cleaned_problem)
             
-            # Route to appropriate solver based on problem type
-            if problem_type == "Algebra" or "solve" in cleaned_problem.lower():
+            # Route to appropriate solver based on problem type/keywords
+            lower_text = cleaned_problem.lower()
+            if problem_type == "Algebra" or "solve" in lower_text:
                 return self._solve_algebraic(cleaned_problem)
-            elif problem_type == "Calculus" or any(keyword in cleaned_problem.lower() for keyword in ["derivative", "differentiate", "d/dx"]):
+            # Prefer explicit integration keywords before generic Calculus routing
+            elif any(keyword in lower_text for keyword in ["integrate", "integral", "∫"]):
+                return self._solve_calculus_integral(cleaned_problem)
+            elif any(keyword in lower_text for keyword in ["derivative", "differentiate", "d/dx"]):
                 return self._solve_calculus_derivative(cleaned_problem)
-            elif problem_type == "Calculus" or any(keyword in cleaned_problem.lower() for keyword in ["integrate", "integral", "∫"]):
+            elif problem_type == "Calculus":
+                # Default calculus route: try derivative first, then integral if derivative fails
+                derivative_result = self._solve_calculus_derivative(cleaned_problem)
+                if derivative_result and "error" not in derivative_result:
+                    return derivative_result
                 return self._solve_calculus_integral(cleaned_problem)
             elif self._is_system_of_equations(cleaned_problem):
                 return self._solve_system_of_equations(cleaned_problem)

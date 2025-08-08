@@ -159,10 +159,10 @@ class SolutionFormatter:
             # Replace sqrt with √ symbol
             text = re.sub(r'sqrt\(([^)]+)\)', r'√(\1)', text)
             
-            # Replace other common mathematical symbols
-            text = text.replace('pi', 'π')
-            text = text.replace('infinity', '∞')
-            text = text.replace('oo', '∞')
+            # Replace other common mathematical symbols (token-aware)
+            text = re.sub(r'(?<!\w)pi(?!\w)', 'π', text)
+            text = re.sub(r'(?<!\w)infinity(?!\w)', '∞', text)
+            text = re.sub(r'(?<!\w)oo(?!\w)', '∞', text)
             text = text.replace('**', '^')  # Power notation
             
             # Handle negative square roots

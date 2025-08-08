@@ -116,19 +116,23 @@ class NLPProcessor:
         """Extract all numbers from text with enhanced parsing"""
         numbers = []
         
-        # Extract digit numbers (including decimals, fractions, and percentages)
-        digit_numbers = re.findall(r'\d+(?:\.\d+)?', text)
-        numbers.extend([float(num) for num in digit_numbers])
+        # Extract percentages as decimals FIRST to avoid double counting, e.g., 15% -> 0.15
+        percentage_matches = re.findall(r'(\d+(?:\.\d+)?)\s*%', text)
+        numbers.extend([float(p) / 100 for p in percentage_matches])
         
-        # Extract fractions like "1/2", "3/4"
-        fractions = re.findall(r'(\d+)/(\d+)', text)
-        for num, den in fractions:
+        # Extract fractions like "1/2" FIRST to avoid counting their components as digits
+        fraction_matches = re.findall(r'(?<!\d)(\d+)/(\d+)(?!\d)', text)
+        for num, den in fraction_matches:
             if int(den) != 0:  # Avoid division by zero
                 numbers.append(float(num) / float(den))
         
-        # Extract percentages and convert to decimals
-        percentages = re.findall(r'(\d+(?:\.\d+)?)%', text)
-        numbers.extend([float(p) / 100 for p in percentages])
+        # Remove percentage and fraction tokens before extracting plain digit numbers
+        cleaned_text = re.sub(r'\d+(?:\.\d+)?\s*%', ' ', text)
+        cleaned_text = re.sub(r'(?<!\d)\d+/\d+(?!\d)', ' ', cleaned_text)
+        
+        # Extract digit numbers (including decimals), excluding those already handled via % or fraction
+        digit_numbers = re.findall(r'\d+(?:\.\d+)?', cleaned_text)
+        numbers.extend([float(num) for num in digit_numbers])
         
         # Extract word numbers with better compound number handling
         words = text.split()
@@ -294,23 +298,35 @@ class NLPProcessor:
     def _handle_money_problem(self, text, numbers):
         """Handle money-related problems"""
         if len(numbers) >= 2:
-            # Multiple items with same price
+            # Multiple items priced 'each' or 'per'
             if 'each' in text or 'per' in text:
-                # Find quantity and price
-                return f"{numbers[0]} * {numbers[1]}"
+                total_cost = 0.0
+                # Pair consecutive numbers as (quantity, price)
+                for idx in range(0, len(numbers) - 1, 2):
+                    qty = numbers[idx]
+                    price = numbers[idx + 1]
+                    total_cost += qty * price
+                if total_cost > 0:
+                    return f"{total_cost}"
+                else:
+                    return f"{numbers[0]} * {numbers[1]}"
             
             # Discount problems
             elif 'discount' in text and ('percent' in text or '%' in text):
-                percentage = numbers[1] if numbers[1] <= 1 else numbers[1] / 100
-                return f"{numbers[0]} * (1 - {percentage})"
+                base = numbers[0]
+                rate = numbers[1]
+                percentage = rate if rate <= 1 else rate / 100
+                return f"{base} * (1 - {percentage})"
             
             # Total cost problems
             elif any(word in text for word in ['total', 'sum', 'altogether']):
-                return f"{numbers[0]} + {numbers[1]}"
+                return " + ".join(str(n) for n in numbers)
             
-            # Change problems
+            # Change / remaining money problems
             elif any(word in text for word in ['change', 'difference', 'left']):
-                return f"{numbers[0]} - {numbers[1]}"
+                initial = numbers[0]
+                expenses_sum = sum(numbers[1:]) if len(numbers) > 1 else 0
+                return f"{initial} - {expenses_sum}"
                 
         return None
     
